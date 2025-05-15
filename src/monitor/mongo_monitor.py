@@ -1,11 +1,13 @@
 import asyncio
 from bson import json_util
+from utils.eda import clean_mongo_data
 
 class MongoMonitor:
-    def __init__(self, mongo_conn, json_manager, collections):
+    def __init__(self, mongo_conn, json_manager, collections, data_fetcher):
         self.mongo_conn = mongo_conn
         self.json_manager = json_manager
         self.collections = collections
+        self.data_fetcher = data_fetcher
 
     async def monitor_changes(self):
         """
@@ -27,7 +29,6 @@ class MongoMonitor:
         Monitor a single MongoDB collection in a threaded context.
         """
         try:
-            # Run synchronous Change Stream iteration in a thread
             await asyncio.to_thread(self.process_collection_changes, collection_name)
         except Exception as e:
             print(f"Error monitoring collection {collection_name}: {e}")
@@ -52,13 +53,22 @@ class MongoMonitor:
         try:
             if operation == 'insert':
                 document = change['fullDocument']
-                self.json_manager.update_json(collection_name, 'INSERT', document, id_field='_id')
+                if document:
+                    cleaned_document = clean_mongo_data(document)
+                    self.json_manager.update_json(collection_name, 'INSERT', cleaned_document, id_field='_id')
+                    if collection_name == "projects":
+                        self.data_fetcher.update_combined_data_for_project(cleaned_document, 'INSERT')
             elif operation == 'update':
                 document = change['fullDocument']
-                if document:  # fullDocument may be None if not available
-                    self.json_manager.update_json(collection_name, 'UPDATE', document, id_field='_id')
+                if document:
+                    cleaned_document = clean_mongo_data(document)
+                    self.json_manager.update_json(collection_name, 'UPDATE', cleaned_document, id_field='_id')
+                    if collection_name == "projects":
+                        self.data_fetcher.update_combined_data_for_project(cleaned_document, 'UPDATE')
             elif operation == 'delete':
                 document_id = change['documentKey']['_id']
                 self.json_manager.update_json(collection_name, 'DELETE', {'_id': document_id}, id_field='_id')
+                if collection_name == "projects":
+                    self.data_fetcher.update_combined_data_for_project({'_id': document_id}, 'DELETE')
         except Exception as e:
             print(f"Error processing change for {collection_name}: {e}")

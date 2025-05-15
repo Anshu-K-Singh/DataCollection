@@ -46,10 +46,14 @@ async def main():
             print(f"Fetching data from PostgreSQL table: {table}")
             data_fetcher.fetch_and_save_postgres(table)
 
+        # Combine and save data
+        print("Combining data...")
+        data_fetcher.combine_and_save_data()
+
         # Start change monitoring
         print("Starting change monitoring...")
-        mongo_monitor = MongoMonitor(mongo_conn, json_manager, config['mongodb']['collections'])
-        pg_monitor = PGMonitor(pg_conn, json_manager, config['postgresql']['tables'], config)
+        mongo_monitor = MongoMonitor(mongo_conn, json_manager, config['mongodb']['collections'], data_fetcher)
+        pg_monitor = PGMonitor(pg_conn, json_manager, config['postgresql']['tables'], config, data_fetcher)
 
         # Run monitors concurrently
         await asyncio.gather(

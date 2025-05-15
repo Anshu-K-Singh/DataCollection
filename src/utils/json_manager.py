@@ -1,72 +1,82 @@
 import json
 import os
+from threading import Lock
 from datetime import datetime, date
 from bson import ObjectId
-import decimal
 
 class CustomJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder to handle ObjectId, datetime, date, and Decimal."""
     def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
         if isinstance(obj, ObjectId):
             return str(obj)
-        if isinstance(obj, (datetime, date)):  # handle both datetime and date
-            return obj.isoformat()
-        if isinstance(obj, decimal.Decimal):
-            return float(obj)
         return super().default(obj)
 
 class JSONManager:
-    def __init__(self, json_dir):
-        self.json_dir = json_dir
-        os.makedirs(json_dir, exist_ok=True)
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
+        self.lock = Lock()
+        os.makedirs(data_dir, exist_ok=True)
 
     def write_json(self, filename, data):
         """
-        Write data to a JSON file using custom encoder.
+        Write data to a JSON file.
         """
-        try:
-            filepath = os.path.join(self.json_dir, f"{filename}.json")
-            with open(filepath, 'w') as f:
-                json.dump(data, f, indent=2, cls=CustomJSONEncoder)
-            print(f"Data written to {filepath}")
-        except Exception as e:
-            print(f"Error writing to JSON file {filename}: {e}")
-
-    def read_json(self, filename):
-        """
-        Read data from a JSON file.
-        Returns empty list if file doesn't exist.
-        """
-        filepath = os.path.join(self.json_dir, f"{filename}.json")
-        try:
-            with open(filepath, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return []
-        except Exception as e:
-            print(f"Error reading JSON file {filename}: {e}")
-            return []
+        file_path = os.path.join(self.data_dir, f"{filename}.json")
+        with self.lock:
+            try:
+                with open(file_path, 'w') as f:
+                    json.dump(data, f, cls=CustomJSONEncoder, indent=2)
+            except Exception as e:
+                print(f"Error writing to {file_path}: {e}")
 
     def update_json(self, filename, operation, record, id_field='id'):
         """
-        Update JSON file based on operation (INSERT, UPDATE, DELETE).
-        id_field: '_id' for MongoDB, 'id' for PostgreSQL.
+        Update a JSON file based on the operation (INSERT, UPDATE, DELETE).
         """
-        data = self.read_json(filename)
-        record_id = record.get(id_field)
+        file_path = os.path.join(self.data_dir, f"{filename}.json")
+        with self.lock:
+            try:
+                # Load existing data
+                data = []
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                
+                if not isinstance(data, list):
+                    data = [data] if data else []
 
-        if operation == 'INSERT':
-            data.append(record)
-        elif operation == 'UPDATE':
-            for i, item in enumerate(data):
-                if item.get(id_field) == record_id:
-                    data[i] = record
-                    break
-        elif operation == 'DELETE':
-            data = [item for item in data if item.get(id_field) != record_id]
-        else:
-            print(f"Unknown operation: {operation}")
-            return
+                # Process operation
+                record_id = record.get(id_field)
+                if operation == 'INSERT':
+                    data.append(record)
+                elif operation == 'UPDATE':
+                    for i, item in enumerate(data):
+                        if item.get(id_field) == record_id:
+                            data[i] = record
+                            break
+                    else:
+                        data.append(record)
+                elif operation == 'DELETE':
+                    data = [item for item in data if item.get(id_field) != record_id]
 
-        self.write_json(filename, data)
-        print(f"Updated {filename}.json with {operation} for record {record_id}")
+                # Write updated data
+                with open(file_path, 'w') as f:
+                    json.dump(data, f, cls=CustomJSONEncoder, indent=2)
+            except Exception as e:
+                print(f"Error updating {file_path}: {e}")
+
+    def load_json(self, filename):
+        """
+        Load data from a JSON file.
+        """
+        file_path = os.path.join(self.data_dir, f"{filename}.json")
+        with self.lock:
+            try:
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as f:
+                        return json.load(f)
+                return []
+            except Exception as e:
+                print(f"Error loading {file_path}: {e}")
+                return []
