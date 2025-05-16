@@ -32,7 +32,7 @@ class MongoMonitor:
             await asyncio.to_thread(self.process_collection_changes, collection_name)
         except Exception as e:
             print(f"Error monitoring collection {collection_name}: {e}")
-
+ 
     def process_collection_changes(self, collection_name):
         """
         Process changes for a MongoDB collection using a synchronous Change Stream.
@@ -50,6 +50,7 @@ class MongoMonitor:
         """
         Process a change event and update the corresponding JSON file.
         """
+        
         try:
             if operation == 'insert':
                 document = change['fullDocument']
