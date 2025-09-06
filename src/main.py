@@ -9,6 +9,14 @@ from monitor.mongo_monitor import MongoMonitor
 from monitor.pg_monitor import PGMonitor
 
 async def main():
+    """The main entry point of the application.
+
+    This function orchestrates the entire process:
+    1. Loads configuration from `config/config.yaml`.
+    2. Initializes database connectors and the JSON manager.
+    3. Fetches the initial dataset from both MongoDB and PostgreSQL.
+    4. Starts the real-time monitoring of both databases concurrently.
+    """
     # Resolve config.yaml path relative to project root
     script_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(script_dir, '..', 'config', 'config.yaml')

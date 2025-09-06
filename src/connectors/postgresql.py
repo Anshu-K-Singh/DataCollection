@@ -1,7 +1,22 @@
 import psycopg2
+import psycopg2.extras
 
 class PostgreSQLConnector:
+    """A connector class for interacting with a PostgreSQL database."""
+
     def __init__(self, host, port, database, user, password):
+        """Initializes the PostgreSQLConnector.
+
+        Args:
+            host (str): The database server host.
+            port (int): The database server port.
+            database (str): The name of the database.
+            user (str): The username for authentication.
+            password (str): The password for authentication.
+
+        Raises:
+            Exception: If the connection to the database fails.
+        """
         try:
             self.conn = psycopg2.connect(
                 host=host,
@@ -15,21 +30,26 @@ class PostgreSQLConnector:
             raise
 
     def fetch_all(self, table_name):
-        """
-        Fetch all rows from a PostgreSQL table.
-        Returns a list of dictionaries, where each dictionary represents a row.
+        """Fetches all rows from a PostgreSQL table.
+
+        Args:
+            table_name (str): The name of the table to fetch from.
+
+        Returns:
+            list[dict]: A list of dictionaries, where each dictionary
+                        represents a row. Returns an empty list if an
+                        error occurs.
         """
         try:
-            with self.conn.cursor() as cur:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 cur.execute(f"SELECT * FROM {table_name}")
-                columns = [desc[0] for desc in cur.description]
                 rows = cur.fetchall()
-                return [dict(zip(columns, row)) for row in rows]
+                return [dict(row) for row in rows]
         except Exception as e:
             print(f"Error fetching data from PostgreSQL table {table_name}: {e}")
             return []
 
     def close(self):
-        """Close the PostgreSQL connection."""
+        """Closes the PostgreSQL connection."""
         if self.conn:
             self.conn.close()

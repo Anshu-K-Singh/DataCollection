@@ -1,16 +1,27 @@
 import asyncio
-from bson import json_util
+from src.connectors.mongodb import MongoDBConnector
+from src.utils.json_manager import JSONManager
 
 class MongoMonitor:
-    def __init__(self, mongo_conn, json_manager, collections):
+    """A class to monitor real-time changes in MongoDB collections."""
+
+    def __init__(self, mongo_conn: MongoDBConnector, json_manager: JSONManager, collections: list[str]):
+        """Initializes the MongoMonitor.
+
+        Args:
+            mongo_conn (MongoDBConnector): An instance of MongoDBConnector.
+            json_manager (JSONManager): An instance of JSONManager.
+            collections (list[str]): A list of collection names to monitor.
+        """
         self.mongo_conn = mongo_conn
         self.json_manager = json_manager
         self.collections = collections
 
     async def monitor_changes(self):
-        """
-        Monitor changes in MongoDB collections using Change Streams.
-        Runs synchronous Change Stream iteration in a separate thread.
+        """Monitors changes in MongoDB collections using Change Streams.
+
+        This async method creates and runs a monitoring task for each specified
+        collection concurrently.
         """
         try:
             tasks = []
@@ -22,19 +33,28 @@ class MongoMonitor:
         except Exception as e:
             print(f"Error in MongoDB Change Stream monitoring: {e}")
 
-    async def monitor_collection(self, collection_name):
-        """
-        Monitor a single MongoDB collection in a threaded context.
+    async def monitor_collection(self, collection_name: str):
+        """Monitors a single MongoDB collection in a separate thread.
+
+        This is a helper for `monitor_changes` that runs the synchronous
+        change processing in a thread to avoid blocking the asyncio event loop.
+
+        Args:
+            collection_name (str): The name of the collection to monitor.
         """
         try:
-            # Run synchronous Change Stream iteration in a thread
             await asyncio.to_thread(self.process_collection_changes, collection_name)
         except Exception as e:
             print(f"Error monitoring collection {collection_name}: {e}")
 
-    def process_collection_changes(self, collection_name):
-        """
-        Process changes for a MongoDB collection using a synchronous Change Stream.
+    def process_collection_changes(self, collection_name: str):
+        """Processes changes for a MongoDB collection using a synchronous Change Stream.
+
+        This method opens a Change Stream on a collection and listens for
+        insert, update, and delete operations, processing each change as it arrives.
+
+        Args:
+            collection_name (str): The name of the collection to process changes for.
         """
         change_stream = self.mongo_conn.get_change_stream(collection_name)
         try:
@@ -45,9 +65,13 @@ class MongoMonitor:
         finally:
             change_stream.close()
 
-    def process_change(self, collection_name, operation, change):
-        """
-        Process a change event and update the corresponding JSON file.
+    def process_change(self, collection_name: str, operation: str, change: dict):
+        """Processes a single change event and updates the corresponding JSON file.
+
+        Args:
+            collection_name (str): The name of the collection where the change occurred.
+            operation (str): The type of operation ('insert', 'update', 'delete').
+            change (dict): The change event document from the Change Stream.
         """
         try:
             if operation == 'insert':

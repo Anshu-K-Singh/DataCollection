@@ -2,9 +2,21 @@ import select
 import psycopg2
 import asyncio
 from psycopg2 import OperationalError
+from src.connectors.postgresql import PostgreSQLConnector
+from src.utils.json_manager import JSONManager
 
 class PGMonitor:
-    def __init__(self, pg_conn, json_manager, tables, config):
+    """A class to monitor real-time changes in PostgreSQL tables."""
+
+    def __init__(self, pg_conn: PostgreSQLConnector, json_manager: JSONManager, tables: list[str], config: dict):
+        """Initializes the PGMonitor.
+
+        Args:
+            pg_conn (PostgreSQLConnector): An instance of PostgreSQLConnector.
+            json_manager (JSONManager): An instance of JSONManager.
+            tables (list[str]): A list of table names to monitor.
+            config (dict): The application configuration.
+        """
         self.pg_conn = pg_conn
         self.json_manager = json_manager
         self.tables = tables
@@ -21,8 +33,10 @@ class PGMonitor:
         }
 
     async def monitor_changes(self):
-        """
-        Monitor PostgreSQL tables using LISTEN/NOTIFY with reconnection logic.
+        """Monitors PostgreSQL tables using LISTEN/NOTIFY with reconnection logic.
+
+        This method listens for notifications on the 'table_change' channel.
+        It includes a reconnection loop to handle connection drops.
         """
         while True:
             conn = None
@@ -57,12 +71,15 @@ class PGMonitor:
                 if conn and not conn.closed:
                     conn.close()
 
-    def process_change(self, table_name, operation, record_id):
-        """
-        Process a change event from the change_log table and update the JSON file.
+    def process_change(self, table_name: str, operation: str, record_id: int):
+        """Processes a change event from the change_log table and updates the JSON file.
+
+        Args:
+            table_name (str): The name of the table that was changed.
+            operation (str): The operation type (e.g., 'INSERT', 'UPDATE', 'DELETE').
+            record_id (int): The ID of the changed record.
         """
         try:
-            # Use the existing connection for querying change_log
             with self.pg_conn.conn.cursor() as cur:
                 cur.execute(
                     "SELECT operation, new_data FROM change_log WHERE table_name = %s AND record_id = %s ORDER BY timestamp DESC LIMIT 1",
@@ -71,7 +88,7 @@ class PGMonitor:
                 result = cur.fetchone()
                 if result:
                     op, new_data = result
-                    if op == 'INSERT' or op == 'UPDATE':
+                    if op in ['INSERT', 'UPDATE']:
                         if new_data:
                             self.json_manager.update_json(table_name, op, new_data, id_field='id')
                     elif op == 'DELETE':

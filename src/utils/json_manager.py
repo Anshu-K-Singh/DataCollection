@@ -5,24 +5,48 @@ from bson import ObjectId
 import decimal
 
 class CustomJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder to handle ObjectId, datetime, date, and Decimal."""
+    """A custom JSON encoder to handle special data types.
+
+    This encoder provides serialization for:
+    - `ObjectId`: Converts to string.
+    - `datetime` and `date`: Converts to ISO 8601 format string.
+    - `Decimal`: Converts to float.
+    """
     def default(self, obj):
+        """Overrides the default JSONEncoder method.
+
+        Args:
+            obj: The object to encode.
+
+        Returns:
+            A serializable representation of the object.
+        """
         if isinstance(obj, ObjectId):
             return str(obj)
-        if isinstance(obj, (datetime, date)):  # handle both datetime and date
+        if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         if isinstance(obj, decimal.Decimal):
             return float(obj)
         return super().default(obj)
 
 class JSONManager:
-    def __init__(self, json_dir):
+    """A class to manage reading and writing JSON files."""
+
+    def __init__(self, json_dir: str):
+        """Initializes the JSONManager.
+
+        Args:
+            json_dir (str): The directory where JSON files will be stored.
+        """
         self.json_dir = json_dir
         os.makedirs(json_dir, exist_ok=True)
 
-    def write_json(self, filename, data):
-        """
-        Write data to a JSON file using custom encoder.
+    def write_json(self, filename: str, data: any):
+        """Writes data to a JSON file using a custom encoder.
+
+        Args:
+            filename (str): The name of the file (without extension).
+            data (any): The data to write to the file.
         """
         try:
             filepath = os.path.join(self.json_dir, f"{filename}.json")
@@ -32,10 +56,15 @@ class JSONManager:
         except Exception as e:
             print(f"Error writing to JSON file {filename}: {e}")
 
-    def read_json(self, filename):
-        """
-        Read data from a JSON file.
-        Returns empty list if file doesn't exist.
+    def read_json(self, filename: str) -> list | dict:
+        """Reads data from a JSON file.
+
+        Args:
+            filename (str): The name of the file (without extension).
+
+        Returns:
+            list | dict: The data from the JSON file. Returns an empty list
+                         if the file is not found or an error occurs.
         """
         filepath = os.path.join(self.json_dir, f"{filename}.json")
         try:
@@ -47,10 +76,17 @@ class JSONManager:
             print(f"Error reading JSON file {filename}: {e}")
             return []
 
-    def update_json(self, filename, operation, record, id_field='id'):
-        """
-        Update JSON file based on operation (INSERT, UPDATE, DELETE).
-        id_field: '_id' for MongoDB, 'id' for PostgreSQL.
+    def update_json(self, filename: str, operation: str, record: dict, id_field: str = 'id'):
+        """Updates a JSON file based on a specified operation.
+
+        This method supports 'INSERT', 'UPDATE', and 'DELETE' operations.
+
+        Args:
+            filename (str): The name of the file (without extension).
+            operation (str): The operation to perform ('INSERT', 'UPDATE', 'DELETE').
+            record (dict): The record to be added, updated, or deleted.
+            id_field (str): The name of the identifier field in the records.
+                            Defaults to 'id'.
         """
         data = self.read_json(filename)
         record_id = record.get(id_field)
